@@ -1,0 +1,16 @@
+{
+    "label_to_id": {
+        "Mixed_feelings": 0,
+        "Negative": 1,
+        "Positive": 2,
+        "not-Tamil": 3,
+        "unknown_state": 4
+    },
+    "id_to_label": {
+        "0": "Mixed_feelings",
+        "1": "Negative",
+        "2": "Positive",
+        "3": "not-Tamil",
+        "4": "unknown_state"
+    }
+}

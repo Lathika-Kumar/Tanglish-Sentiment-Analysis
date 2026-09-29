@@ -1,0 +1,52 @@
+{
+    "vocab_size": 25000,
+    "max_len": 45,
+    "num_classes": 5,
+    "classes": [
+        "Mixed_feelings",
+        "Negative",
+        "Positive",
+        "not-Tamil",
+        "unknown_state"
+    ],
+    "label_to_id": {
+        "Mixed_feelings": 0,
+        "Negative": 1,
+        "Positive": 2,
+        "not-Tamil": 3,
+        "unknown_state": 4
+    },
+    "id_to_label": {
+        "0": "Mixed_feelings",
+        "1": "Negative",
+        "2": "Positive",
+        "3": "not-Tamil",
+        "4": "unknown_state"
+    },
+    "class_weights": {
+        "0": 1.8028,
+        "1": 1.6927,
+        "2": 0.3536,
+        "3": 4.1795,
+        "4": 1.2704
+    },
+    "train_samples": 35191,
+    "dev_samples": 4398,
+    "test_samples": 4402,
+    "embedding_dim": 128,
+    "recurrent_units": 64,
+    "dropout_rate": 0.3,
+    "batch_size": 64,
+    "epochs": 10,
+    "learning_rate": 0.001,
+    "high_accuracy_benchmark": {
+        "test_accuracy": 0.8554,
+        "ensemble_test_accuracy": 0.861,
+        "macro_f1": 0.7499,
+        "weighted_f1": 0.8541,
+        "positive_f1": 0.9123,
+        "negative_precision": 0.6015,
+        "positive_precision": 0.9078,
+        "positive_recall": 0.9169
+    }
+}
