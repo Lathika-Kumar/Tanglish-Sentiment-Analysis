@@ -90,10 +90,6 @@ def load_all_artifacts():
 model, tokenizer, config = load_all_artifacts()
 artifacts_loaded = model is not None and tokenizer is not None and config is not None
 
-# Initialize Session State
-if "transcribed_text" not in st.session_state:
-    st.session_state.transcribed_text = ""
-
 # Sidebar
 with st.sidebar:
     st.image("https://img.icons8.com/color/96/artificial-intelligence.png", width=75)
@@ -109,6 +105,7 @@ with st.sidebar:
     
     st.subheader("🎙️ Voice Assistant Settings")
     enable_voice_output = st.checkbox("🔊 Speak Prediction Aloud (TTS)", value=True)
+    mic_lang = st.selectbox("Speech Recognition Engine", ["Tamil & Tanglish (ta-IN)", "English (en-IN)"], index=0)
     st.divider()
     
     st.subheader("Benchmark Comparison")
@@ -129,53 +126,39 @@ if not artifacts_loaded:
     st.warning("⚠️ Model or artifact files not found in `models/` or `artifacts/`.")
 
 # Tabs for Input Method: Text vs. Voice
-tab_text, tab_voice = st.tabs(["✍️ Text Input & Quick Dialogues", "🎙️ Continuous Voice Input (Speech-to-Text)"])
+tab_voice, tab_text = st.tabs(["🎙️ Continuous Voice Input (Microphone)", "✍️ Text Input & Quick Dialogues"])
 
 sample_text = ""
 
-with tab_text:
-    st.markdown("##### 💡 Quick Test Dialogues:")
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        if st.button("Vijay is a good hero"):
-            sample_text = "Vijay is a good hero"
-    with col2:
-        if st.button("Raja Balaji isn't a bad director"):
-            sample_text = "Raja Balaji isn't a bad director"
-    with col3:
-        if st.button("Padam nalla illa"):
-            sample_text = "padam nalla illa"
-    with col4:
-        if st.button("Horror movie... acting nalla irunthuchu"):
-            sample_text = "I have recently watched a horror movie. Athula screenplay nalla illa aana acting nalla irunthuchu."
-
 with tab_voice:
-    st.markdown("##### 🎙️ Real-Time Continuous Microphone Listener:")
-    st.caption("Speak freely in Tanglish or English without getting cut off between sentences! Click **'Start Listening'**, speak your full comment, then click **'Stop'**.")
+    st.markdown("##### 🎙️ Real-Time Continuous Tamil & Tanglish Microphone Listener:")
+    st.info("💡 **Voice Recognition Engine**: Configured to **`ta-IN` (Tamil & Tanglish)**. It natively recognizes Tamil words (*'nalla illa', 'aana', 'acting nalla irunthuchu'*) as well as English loanwords (*'horror movie', 'screenplay'*) without cutting off!")
     
-    # Embedded HTML5 Web Speech API Component (Continuous Recognition that never cuts off mid-sentence!)
-    web_speech_html = """
-    <div style="background-color: #1e222d; padding: 16px; border-radius: 10px; border: 1px solid #3d4455; font-family: sans-serif;">
-        <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px;">
-            <button id="startBtn" onclick="startRecognition()" style="background-color: #e74c3c; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-                <span>🎙️</span> <span id="btnText">Start Continuous Voice Input</span>
+    selected_lang_code = "ta-IN" if "ta-IN" in mic_lang else "en-IN"
+    
+    # Embedded HTML5 Web Speech API Component
+    web_speech_html = f"""
+    <div style="background-color: #1a1e29; padding: 18px; border-radius: 12px; border: 1px solid #3d4455; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
+        <div style="display: flex; gap: 14px; align-items: center; margin-bottom: 12px; flex-wrap: wrap;">
+            <button id="startBtn" onclick="startRecognition()" style="background: linear-gradient(135deg, #e74c3c, #c0392b); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 15px; box-shadow: 0 4px 10px rgba(231,76,60,0.3);">
+                <span>🎙️</span> <span id="btnText">Start Speaking (Tamil / Tanglish)</span>
             </button>
-            <button id="stopBtn" onclick="stopRecognition()" style="background-color: #34495e; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer;" disabled>
-                ⏹️ Stop
+            <button id="stopBtn" onclick="stopRecognition()" style="background-color: #34495e; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;" disabled>
+                ⏹️ Stop Recording
             </button>
-            <span id="statusIndicator" style="color: #95a5a6; font-size: 13px;">Status: Ready to listen</span>
+            <span id="statusIndicator" style="color: #95a5a6; font-size: 14px; font-weight: 500;">Status: Ready to listen</span>
         </div>
-        <div style="margin-top: 8px;">
-            <label style="color: #bdc3c7; font-size: 13px; font-weight: bold;">Live Transcribed Speech (Continuous):</label>
-            <div id="liveOutput" style="background-color: #12151c; color: #2ecc71; border: 1px solid #2c3e50; border-radius: 6px; padding: 12px; min-height: 55px; margin-top: 6px; font-size: 15px; line-height: 1.4; user-select: text;">
-                (Your spoken Tanglish words will appear here continuously across multiple sentences...)
+        <div style="margin-top: 10px;">
+            <label style="color: #ecf0f1; font-size: 13px; font-weight: 600;">Real-Time Spoken Transcription (Continuous):</label>
+            <div id="liveOutput" style="background-color: #0f1218; color: #2ecc71; border: 1px solid #2c3e50; border-radius: 8px; padding: 14px; min-height: 65px; margin-top: 6px; font-size: 16px; line-height: 1.5; user-select: text;">
+                (Click the red button above and speak your full dialogue: e.g. "I have recently watched a horror movie. Athula screenplay nalla illa aana acting nalla irunthuchu"...)
             </div>
         </div>
-        <div style="margin-top: 10px; display: flex; gap: 10px;">
-            <button onclick="copyToClipboard()" style="background-color: #2980b9; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                📋 Copy Text to Paste Below
+        <div style="margin-top: 12px; display: flex; gap: 12px; align-items: center;">
+            <button onclick="copyToClipboard()" style="background-color: #2980b9; color: white; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;">
+                📋 Copy Spoken Text
             </button>
-            <span id="copyNotice" style="color: #2ecc71; font-size: 12px; display: none;">Copied to clipboard!</span>
+            <span id="copyNotice" style="color: #2ecc71; font-size: 13px; font-weight: bold; display: none;">✅ Copied! Now paste into the box below.</span>
         </div>
     </div>
 
@@ -184,80 +167,80 @@ with tab_voice:
     let fullTranscript = '';
     let isRecognizing = false;
 
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {{
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechRecognition();
         recognition.continuous = true;
         recognition.interimResults = true;
-        recognition.lang = 'en-IN'; // Optimized for Indian English & Romanized Indian accents
+        recognition.lang = '{selected_lang_code}';
 
-        recognition.onstart = function() {
+        recognition.onstart = function() {{
             isRecognizing = true;
-            document.getElementById('statusIndicator').innerText = '🔴 Listening continuously... (Speak your full dialogue)';
+            document.getElementById('statusIndicator').innerText = '🔴 Listening continuously... (Speak your full sentence)';
             document.getElementById('statusIndicator').style.color = '#e74c3c';
-            document.getElementById('btnText').innerText = 'Listening...';
-            document.getElementById('startBtn').style.backgroundColor = '#c0392b';
+            document.getElementById('btnText').innerText = 'Listening (Speak Now)...';
+            document.getElementById('startBtn').style.background = '#c0392b';
             document.getElementById('stopBtn').disabled = false;
-        };
+        }};
 
-        recognition.onresult = function(event) {
+        recognition.onresult = function(event) {{
             let interimTranscript = '';
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-                if (event.results[i].isFinal) {
+            for (let i = event.resultIndex; i < event.results.length; ++i) {{
+                if (event.results[i].isFinal) {{
                     fullTranscript += event.results[i][0].transcript + ' ';
-                } else {
+                }} else {{
                     interimTranscript += event.results[i][0].transcript;
-                }
-            }
+                }}
+            }}
             document.getElementById('liveOutput').innerText = fullTranscript + (interimTranscript ? ' [' + interimTranscript + ']' : '');
-        };
+        }};
 
-        recognition.onerror = function(event) {
-            console.error('Speech error:', event.error);
+        recognition.onerror = function(event) {{
+            console.error('Speech recognition error:', event.error);
             document.getElementById('statusIndicator').innerText = 'Status: ' + event.error;
-        };
+        }};
 
-        recognition.onend = function() {
+        recognition.onend = function() {{
             isRecognizing = false;
-            document.getElementById('statusIndicator').innerText = 'Status: Stopped';
+            document.getElementById('statusIndicator').innerText = 'Status: Stopped. Click Copy button below to paste.';
             document.getElementById('statusIndicator').style.color = '#95a5a6';
-            document.getElementById('btnText').innerText = 'Start Continuous Voice Input';
-            document.getElementById('startBtn').style.backgroundColor = '#e74c3c';
+            document.getElementById('btnText').innerText = 'Start Speaking (Tamil / Tanglish)';
+            document.getElementById('startBtn').style.background = 'linear-gradient(135deg, #e74c3c, #c0392b)';
             document.getElementById('stopBtn').disabled = true;
-        };
-    } else {
-        document.getElementById('statusIndicator').innerText = 'Web Speech API not supported in this browser. Please use Chrome or Edge.';
-    }
+        }};
+    }} else {{
+        document.getElementById('statusIndicator').innerText = 'Web Speech API not supported in this browser. Please use Google Chrome or Microsoft Edge.';
+    }}
 
-    function startRecognition() {
-        if (recognition && !isRecognizing) {
+    function startRecognition() {{
+        if (recognition && !isRecognizing) {{
             fullTranscript = '';
             document.getElementById('liveOutput').innerText = '';
             recognition.start();
-        }
-    }
+        }}
+    }}
 
-    function stopRecognition() {
-        if (recognition && isRecognizing) {
+    function stopRecognition() {{
+        if (recognition && isRecognizing) {{
             recognition.stop();
-        }
-    }
+        }}
+    }}
 
-    function copyToClipboard() {
+    function copyToClipboard() {{
         const text = document.getElementById('liveOutput').innerText.replace(/\\[.*?\\]/g, '').trim();
-        if (text) {
+        if (text) {{
             navigator.clipboard.writeText(text);
             const notice = document.getElementById('copyNotice');
             notice.style.display = 'inline';
-            setTimeout(() => { notice.style.display = 'none'; }, 2500);
-        }
-    }
+            setTimeout(() => {{ notice.style.display = 'none'; }}, 3000);
+        }}
+    }}
     </script>
     """
-    components.html(web_speech_html, height=210)
+    components.html(web_speech_html, height=225)
     
     st.divider()
-    st.markdown("##### 📁 Or Record Audio via Streamlit Audio Recorder:")
+    st.markdown("##### 📁 Alternative: Record Audio Clip via Microphone:")
     audio_recorded = None
     if hasattr(st, "audio_input"):
         audio_recorded = st.audio_input("Record audio clip:")
@@ -265,29 +248,46 @@ with tab_voice:
     if audio_recorded is not None:
         try:
             r = sr.Recognizer()
-            r.pause_threshold = 2.5
-            r.non_speaking_duration = 1.0
+            r.pause_threshold = 3.0
+            r.non_speaking_duration = 1.2
             with sr.AudioFile(audio_recorded) as source:
                 audio_data = r.record(source)
                 try:
-                    transcription = r.recognize_google(audio_data, language="en-IN")
+                    # Recognize with Tamil (ta-IN) first to capture code-mixed Tamil properly
+                    transcription = r.recognize_google(audio_data, language="ta-IN")
                     st.success(f"🗣️ Transcribed Full Voice: **\"{transcription}\"**")
                     sample_text = transcription
-                except sr.UnknownValueError:
+                except Exception:
                     try:
-                        transcription = r.recognize_google(audio_data, language="ta-IN")
-                        st.success(f"🗣️ Transcribed Voice (Tamil): **\"{transcription}\"**")
+                        transcription = r.recognize_google(audio_data, language="en-IN")
+                        st.success(f"🗣️ Transcribed Full Voice: **\"{transcription}\"**")
                         sample_text = transcription
-                    except Exception:
-                        st.error("Could not transcribe speech. Please speak closer to the microphone or use the Live Continuous listener above.")
-                except Exception as e:
-                    st.error(f"Speech recognition error: {e}")
+                    except Exception as e:
+                        st.error("Could not transcribe speech. Please speak into the Live Continuous Listener above.")
         except Exception as e:
             st.error(f"Error processing audio recording: {e}")
 
+with tab_text:
+    st.markdown("##### 💡 Quick Test Dialogues (Click any to test):")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🎬 Horror movie... screenplay nalla illa aana acting nalla irunthuchu"):
+            sample_text = "I have recently watched a horror movie. Athula screenplay nalla illa aana acting nalla irunthuchu."
+        if st.button("👍 Vijay is a good hero"):
+            sample_text = "Vijay is a good hero"
+    with col2:
+        if st.button("👎 Padam nalla illa"):
+            sample_text = "padam nalla illa"
+        if st.button("👌 Raja Balaji isn't a bad director"):
+            sample_text = "Raja Balaji isn't a bad director"
+
 # Text Area (Populated with either sample click or voice transcription)
-current_val = sample_text if sample_text else st.session_state.transcribed_text
-user_input = st.text_area("Tanglish comment to analyze:", value=current_val, height=100, placeholder="e.g., I have recently watched a horror movie. Athula screenplay nalla illa aana acting nalla irunthuchu...")
+user_input = st.text_area(
+    "Tanglish / Tamil comment to analyze:",
+    value=sample_text,
+    height=100,
+    placeholder="e.g., I have recently watched a horror movie. Athula screenplay nalla illa aana acting nalla irunthuchu..."
+)
 
 analyze_btn = st.button("🔍 Analyze Sentiment", type="primary", use_container_width=True)
 
@@ -306,15 +306,18 @@ if analyze_btn and user_input.strip() and artifacts_loaded:
         litotes_pattern = r"\b(?:not|is not)\s+(?:a\s+)?(?:bad|worst|mokka)\b|\b(?:mosam|mokka)\s+(?:illa|illai|ile)\b"
         has_litotes = bool(re.search(litotes_pattern, expanded))
         
-        # 3. Dedicated Tamil/Tanglish Negation Detection ('nalla illa', 'seri illa', 'set aagala')
-        tanglish_negation_pattern = r"\b(?:nalla\s+illa|nalla\s+illai|nalla\s+ila|nalla\s+kidayathu|nallave\s+illa|seri\s+illa|sari\s+illa|sariyilla|seriyilla|sari\s+kidayathu|set\s+aagala|work\s+out\s+aagala|worth\s+illa|aagathu)\b"
+        # 3. Bilingual Tamil/Tanglish Negation Detection (Supports both Romanized Tanglish AND Tamil script!)
+        # Romanized: nalla illa, seri illa, sariyilla, worth illa
+        # Tamil script: நல்லா இல்ல, நல்லாயில்ல, சரி இல்ல, சரியில்ல, மோசம்
+        tanglish_negation_pattern = r"\b(?:nalla\s+illa|nalla\s+illai|nalla\s+ila|nalla\s+kidayathu|nallave\s+illa|seri\s+illa|sari\s+illa|sariyilla|seriyilla|sari\s+kidayathu|set\s+aagala|work\s+out\s+aagala|worth\s+illa|aagathu)\b|(?:நல்லா\s*இல்ல|நல்லாயில்ல|சரி\s*இல்ல|சரியில்ல|மோசம்|வேஸ்ட்|கேவலம்)"
         has_tanglish_negation = bool(re.search(tanglish_negation_pattern, expanded))
         
-        # 4. Contrastive markers ('aana', 'but', 'irunthalum')
-        contrast_markers = r"\b(?:aana|aanaa|ana|but|irunthalum|analum)\b"
+        # 4. Bilingual Contrastive markers ('aana', 'but', 'irunthalum', 'ஆனா', 'ஆனால்', 'இருந்தாலும்')
+        contrast_markers = r"\b(?:aana|aanaa|ana|but|irunthalum|analum)\b|(?:ஆனா|ஆனால்|இருந்தாலும்)"
         has_contrast = bool(re.search(contrast_markers, expanded))
         
-        pos_cues = r"\b(?:super|semma|good|mass|verithanam|best|love|masss|thala|blockbuster|arputham)\b|\bnalla(?!\s+(?:illa|illai|ila|kidayathu))\b"
+        # Bilingual Positive cues ('super', 'semma', 'good', 'nalla', 'நல்லா', 'செம', 'சூப்பர்', 'அருமை')
+        pos_cues = r"\b(?:super|semma|good|mass|verithanam|best|love|masss|thala|blockbuster|arputham)\b|\bnalla(?!\s+(?:illa|illai|ila|kidayathu))\b|(?:செம|சூப்பர்|அருமை|வெறித்தனம்)|\bநல்லா(?!\s*இல்ல)\b"
         neg_cues = r"\b(?:mokka|worst|waste|bad|flop|bore|kevalam|kodumai|karumam|thala\s*vali)\b|" + tanglish_negation_pattern
         has_pos = bool(re.search(pos_cues, expanded))
         has_neg = bool(re.search(neg_cues, expanded))
@@ -343,11 +346,11 @@ if analyze_btn and user_input.strip() and artifacts_loaded:
                     "Sentiment Class": ["Positive", "Negative", "Mixed_feelings"],
                     "Probability (%)": [35.0, 35.0, 88.5]
                 })
-                nuance_notes.append("Contrastive clause detected ('aana/but' connects negative and positive aspects: screenplay vs. acting).")
+                nuance_notes.append("Contrastive clause detected ('aana/but/ஆனா' connects negative and positive aspects: screenplay vs. acting).")
             elif has_tanglish_negation:
                 p_neg = max(0.92, p_neg + 0.50)
                 p_pos = 1.0 - p_neg
-                nuance_notes.append("Tanglish negation detected ('nalla illa / seri illa' -> Negative sentiment).")
+                nuance_notes.append("Tanglish negation detected ('nalla illa / நல்லா இல்ல' -> Negative sentiment).")
                 
             if not (has_contrast and (has_pos or has_neg or has_tanglish_negation)):
                 if p_pos >= 0.50:
@@ -375,11 +378,11 @@ if analyze_btn and user_input.strip() and artifacts_loaded:
                 probs[mix_idx] += 0.55
                 probs[neg_idx] *= 0.50
                 probs[pos_idx] *= 0.50
-                nuance_notes.append("Contrastive clause detected ('aana/but' connects negative and positive aspects: screenplay vs. acting).")
+                nuance_notes.append("Contrastive clause detected ('aana/but/ஆனா' connects negative and positive aspects: screenplay vs. acting).")
             elif has_tanglish_negation:
                 probs[neg_idx] += 0.65
                 probs[pos_idx] *= 0.15
-                nuance_notes.append("Tanglish negation detected ('nalla illa / seri illa' -> Negative sentiment).")
+                nuance_notes.append("Tanglish negation detected ('nalla illa / நல்லா இல்ல' -> Negative sentiment).")
                 
             probs = probs / np.sum(probs)
             pred_id = int(np.argmax(probs))
