@@ -13,7 +13,6 @@ import os
 import io
 import plotly.express as px
 from gtts import gTTS
-import speech_recognition as sr
 import streamlit.components.v1 as components
 
 # Set Streamlit Page Configuration
@@ -105,7 +104,7 @@ with st.sidebar:
     
     st.subheader("🎙️ Voice Assistant Settings")
     enable_voice_output = st.checkbox("🔊 Speak Prediction Aloud (TTS)", value=True)
-    mic_lang = st.selectbox("Speech Recognition Engine", ["Tamil & Tanglish (ta-IN)", "English (en-IN)"], index=0)
+    mic_lang = st.selectbox("Speech Recognition Engine", ["Tamil & Tanglish (ta-IN)", "Indian English (en-IN)"], index=0)
     st.divider()
     
     st.subheader("Benchmark Comparison")
@@ -116,181 +115,186 @@ with st.sidebar:
     })
     st.dataframe(benchmark_df, hide_index=True)
     st.divider()
-    st.caption("Built with TensorFlow, Streamlit & gTTS")
+    st.caption("Built with TensorFlow, Streamlit & Web Speech API")
 
-# Main Page Layout
+# Main Header
 st.title("🎙️ Tanglish Sentiment Analyzer & Voice Assistant")
-st.markdown("Analyze Tamil-English code-mixed comments using **Deep Recurrent Neural Networks** and an interactive **Voice Assistant**.")
+st.markdown("Speak your Tamil-English dialogue below. The **Voice Recognizer** transcribes continuously and automatically places your speech into the analyzer.")
 
 if not artifacts_loaded:
     st.warning("⚠️ Model or artifact files not found in `models/` or `artifacts/`.")
 
-# Tabs for Input Method: Text vs. Voice
-tab_voice, tab_text = st.tabs(["🎙️ Continuous Voice Input (Microphone)", "✍️ Text Input & Quick Dialogues"])
+selected_lang_code = "ta-IN" if "ta-IN" in mic_lang else "en-IN"
 
-sample_text = ""
+# ==============================================================================
+# Dedicated Continuous Voice Recognizer Component with Auto-Injection
+# ==============================================================================
+st.markdown("### 🎙️ Voice Recognizer")
+st.caption("Click **'Start Speaking'**, talk freely in Tanglish or Tamil across multiple sentences, then click **'Stop Recording'**. Your spoken text automatically appears in the analysis box below!")
 
-with tab_voice:
-    st.markdown("##### 🎙️ Real-Time Continuous Tamil & Tanglish Microphone Listener:")
-    st.info("💡 **Voice Recognition Engine**: Configured to **`ta-IN` (Tamil & Tanglish)**. It natively recognizes Tamil words (*'nalla illa', 'aana', 'acting nalla irunthuchu'*) as well as English loanwords (*'horror movie', 'screenplay'*) without cutting off!")
+voice_component_html = f"""
+<div style="background-color: #1a1e29; padding: 20px; border-radius: 12px; border: 1px solid #3d4455; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
+    <div style="display: flex; gap: 14px; align-items: center; margin-bottom: 14px; flex-wrap: wrap;">
+        <button id="startBtn" onclick="startRecognition()" style="background: linear-gradient(135deg, #e74c3c, #c0392b); color: white; border: none; padding: 12px 26px; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 15px; box-shadow: 0 4px 12px rgba(231,76,60,0.35); transition: 0.2s;">
+            <span style="font-size: 18px;">🎙️</span> <span id="btnText">Start Speaking</span>
+        </button>
+        <button id="stopBtn" onclick="stopRecognition()" style="background-color: #34495e; color: white; border: none; padding: 12px 22px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;" disabled>
+            ⏹️ Stop Recording
+        </button>
+        <span id="statusIndicator" style="color: #95a5a6; font-size: 14px; font-weight: 500;">Status: Ready to listen</span>
+    </div>
     
-    selected_lang_code = "ta-IN" if "ta-IN" in mic_lang else "en-IN"
-    
-    # Embedded HTML5 Web Speech API Component
-    web_speech_html = f"""
-    <div style="background-color: #1a1e29; padding: 18px; border-radius: 12px; border: 1px solid #3d4455; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
-        <div style="display: flex; gap: 14px; align-items: center; margin-bottom: 12px; flex-wrap: wrap;">
-            <button id="startBtn" onclick="startRecognition()" style="background: linear-gradient(135deg, #e74c3c, #c0392b); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 15px; box-shadow: 0 4px 10px rgba(231,76,60,0.3);">
-                <span>🎙️</span> <span id="btnText">Start Speaking (Tamil / Tanglish)</span>
-            </button>
-            <button id="stopBtn" onclick="stopRecognition()" style="background-color: #34495e; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;" disabled>
-                ⏹️ Stop Recording
-            </button>
-            <span id="statusIndicator" style="color: #95a5a6; font-size: 14px; font-weight: 500;">Status: Ready to listen</span>
-        </div>
-        <div style="margin-top: 10px;">
-            <label style="color: #ecf0f1; font-size: 13px; font-weight: 600;">Real-Time Spoken Transcription (Continuous):</label>
-            <div id="liveOutput" style="background-color: #0f1218; color: #2ecc71; border: 1px solid #2c3e50; border-radius: 8px; padding: 14px; min-height: 65px; margin-top: 6px; font-size: 16px; line-height: 1.5; user-select: text;">
-                (Click the red button above and speak your full dialogue: e.g. "I have recently watched a horror movie. Athula screenplay nalla illa aana acting nalla irunthuchu"...)
-            </div>
-        </div>
-        <div style="margin-top: 12px; display: flex; gap: 12px; align-items: center;">
-            <button onclick="copyToClipboard()" style="background-color: #2980b9; color: white; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;">
-                📋 Copy Spoken Text
-            </button>
-            <span id="copyNotice" style="color: #2ecc71; font-size: 13px; font-weight: bold; display: none;">✅ Copied! Now paste into the box below.</span>
+    <div>
+        <label style="color: #ecf0f1; font-size: 13px; font-weight: 600;">Real-Time Spoken Words (Continuous):</label>
+        <div id="liveOutput" style="background-color: #0f1218; color: #2ecc71; border: 1px solid #2c3e50; border-radius: 8px; padding: 14px; min-height: 60px; margin-top: 6px; font-size: 16px; line-height: 1.5; user-select: text;">
+            (Click 'Start Speaking' and speak your Tanglish or Tamil dialogue...)
         </div>
     </div>
+    
+    <div style="margin-top: 12px; display: flex; gap: 12px; align-items: center;">
+        <button onclick="autoFillTextArea()" style="background: linear-gradient(135deg, #27ae60, #2ecc71); color: white; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;">
+            📥 Send to Analyzer Box Below
+        </button>
+        <span id="injectNotice" style="color: #2ecc71; font-size: 13px; font-weight: bold; display: none;">✅ Automatically transferred to analyzer box!</span>
+    </div>
+</div>
 
-    <script>
-    let recognition;
-    let fullTranscript = '';
-    let isRecognizing = false;
+<script>
+let recognition;
+let fullTranscript = '';
+let isRecognizing = false;
 
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {{
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = '{selected_lang_code}';
+function setReactInputValue(input, value) {{
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
+    nativeInputValueSetter.call(input, value);
+    const ev2 = new Event('input', {{ bubbles: true }});
+    input.dispatchEvent(ev2);
+}}
 
-        recognition.onstart = function() {{
-            isRecognizing = true;
-            document.getElementById('statusIndicator').innerText = '🔴 Listening continuously... (Speak your full sentence)';
-            document.getElementById('statusIndicator').style.color = '#e74c3c';
-            document.getElementById('btnText').innerText = 'Listening (Speak Now)...';
-            document.getElementById('startBtn').style.background = '#c0392b';
-            document.getElementById('stopBtn').disabled = false;
-        }};
-
-        recognition.onresult = function(event) {{
-            let interimTranscript = '';
-            for (let i = event.resultIndex; i < event.results.length; ++i) {{
-                if (event.results[i].isFinal) {{
-                    fullTranscript += event.results[i][0].transcript + ' ';
-                }} else {{
-                    interimTranscript += event.results[i][0].transcript;
-                }}
-            }}
-            document.getElementById('liveOutput').innerText = fullTranscript + (interimTranscript ? ' [' + interimTranscript + ']' : '');
-        }};
-
-        recognition.onerror = function(event) {{
-            console.error('Speech recognition error:', event.error);
-            document.getElementById('statusIndicator').innerText = 'Status: ' + event.error;
-        }};
-
-        recognition.onend = function() {{
-            isRecognizing = false;
-            document.getElementById('statusIndicator').innerText = 'Status: Stopped. Click Copy button below to paste.';
-            document.getElementById('statusIndicator').style.color = '#95a5a6';
-            document.getElementById('btnText').innerText = 'Start Speaking (Tamil / Tanglish)';
-            document.getElementById('startBtn').style.background = 'linear-gradient(135deg, #e74c3c, #c0392b)';
-            document.getElementById('stopBtn').disabled = true;
-        }};
-    }} else {{
-        document.getElementById('statusIndicator').innerText = 'Web Speech API not supported in this browser. Please use Google Chrome or Microsoft Edge.';
-    }}
-
-    function startRecognition() {{
-        if (recognition && !isRecognizing) {{
-            fullTranscript = '';
-            document.getElementById('liveOutput').innerText = '';
-            recognition.start();
-        }}
-    }}
-
-    function stopRecognition() {{
-        if (recognition && isRecognizing) {{
-            recognition.stop();
-        }}
-    }}
-
-    function copyToClipboard() {{
-        const text = document.getElementById('liveOutput').innerText.replace(/\\[.*?\\]/g, '').trim();
-        if (text) {{
-            navigator.clipboard.writeText(text);
-            const notice = document.getElementById('copyNotice');
+function syncToParentTextArea(text) {{
+    try {{
+        const textareas = window.parent.document.querySelectorAll('textarea');
+        if (textareas && textareas.length > 0) {{
+            const target = textareas[0];
+            setReactInputValue(target, text);
+            const notice = document.getElementById('injectNotice');
             notice.style.display = 'inline';
             setTimeout(() => {{ notice.style.display = 'none'; }}, 3000);
         }}
+    }} catch(e) {{
+        console.log("Cross-origin frame notice:", e);
     }}
-    </script>
-    """
-    components.html(web_speech_html, height=225)
-    
-    st.divider()
-    st.markdown("##### 📁 Alternative: Record Audio Clip via Microphone:")
-    audio_recorded = None
-    if hasattr(st, "audio_input"):
-        audio_recorded = st.audio_input("Record audio clip:")
-    
-    if audio_recorded is not None:
-        try:
-            r = sr.Recognizer()
-            r.pause_threshold = 3.0
-            r.non_speaking_duration = 1.2
-            with sr.AudioFile(audio_recorded) as source:
-                audio_data = r.record(source)
-                try:
-                    # Recognize with Tamil (ta-IN) first to capture code-mixed Tamil properly
-                    transcription = r.recognize_google(audio_data, language="ta-IN")
-                    st.success(f"🗣️ Transcribed Full Voice: **\"{transcription}\"**")
-                    sample_text = transcription
-                except Exception:
-                    try:
-                        transcription = r.recognize_google(audio_data, language="en-IN")
-                        st.success(f"🗣️ Transcribed Full Voice: **\"{transcription}\"**")
-                        sample_text = transcription
-                    except Exception as e:
-                        st.error("Could not transcribe speech. Please speak into the Live Continuous Listener above.")
-        except Exception as e:
-            st.error(f"Error processing audio recording: {e}")
+}}
 
-with tab_text:
-    st.markdown("##### 💡 Quick Test Dialogues (Click any to test):")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🎬 Horror movie... screenplay nalla illa aana acting nalla irunthuchu"):
-            sample_text = "I have recently watched a horror movie. Athula screenplay nalla illa aana acting nalla irunthuchu."
-        if st.button("👍 Vijay is a good hero"):
-            sample_text = "Vijay is a good hero"
-    with col2:
-        if st.button("👎 Padam nalla illa"):
-            sample_text = "padam nalla illa"
-        if st.button("👌 Raja Balaji isn't a bad director"):
-            sample_text = "Raja Balaji isn't a bad director"
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {{
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = '{selected_lang_code}';
 
-# Text Area (Populated with either sample click or voice transcription)
+    recognition.onstart = function() {{
+        isRecognizing = true;
+        document.getElementById('statusIndicator').innerText = '🔴 Listening... (Speak your full dialogue)';
+        document.getElementById('statusIndicator').style.color = '#e74c3c';
+        document.getElementById('btnText').innerText = 'Listening (Speak Now)...';
+        document.getElementById('startBtn').style.background = '#c0392b';
+        document.getElementById('stopBtn').disabled = false;
+    }};
+
+    recognition.onresult = function(event) {{
+        let interimTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {{
+            if (event.results[i].isFinal) {{
+                fullTranscript += event.results[i][0].transcript + ' ';
+            }} else {{
+                interimTranscript += event.results[i][0].transcript;
+            }}
+        }}
+        const currentDisplay = (fullTranscript + interimTranscript).trim();
+        document.getElementById('liveOutput').innerText = currentDisplay;
+        
+        // Automatically sync recognized speech into the analyzer box in real time!
+        if (currentDisplay) {{
+            syncToParentTextArea(currentDisplay);
+        }}
+    }};
+
+    recognition.onerror = function(event) {{
+        console.error('Speech error:', event.error);
+        document.getElementById('statusIndicator').innerText = 'Status: ' + event.error;
+    }};
+
+    recognition.onend = function() {{
+        isRecognizing = false;
+        document.getElementById('statusIndicator').innerText = 'Status: Stopped. Text ready in analyzer box!';
+        document.getElementById('statusIndicator').style.color = '#2ecc71';
+        document.getElementById('btnText').innerText = 'Start Speaking';
+        document.getElementById('startBtn').style.background = 'linear-gradient(135deg, #e74c3c, #c0392b)';
+        document.getElementById('stopBtn').disabled = true;
+        
+        if (fullTranscript.trim()) {{
+            syncToParentTextArea(fullTranscript.trim());
+        }}
+    }};
+}} else {{
+    document.getElementById('statusIndicator').innerText = 'Web Speech API not supported in this browser. Please use Chrome or Edge.';
+}}
+
+function startRecognition() {{
+    if (recognition && !isRecognizing) {{
+        fullTranscript = '';
+        document.getElementById('liveOutput').innerText = '';
+        recognition.start();
+    }}
+}}
+
+function stopRecognition() {{
+    if (recognition && isRecognizing) {{
+        recognition.stop();
+    }}
+}}
+
+function autoFillTextArea() {{
+    const current = document.getElementById('liveOutput').innerText.trim();
+    if (current && !current.startsWith('(')) {{
+        syncToParentTextArea(current);
+    }}
+}}
+</script>
+"""
+components.html(voice_component_html, height=230)
+
+st.markdown("---")
+
+# Quick Demo Buttons for Instant Viva Testing
+st.markdown("##### 💡 Quick Test Dialogues (Click any button to fill):")
+qcol1, qcol2, qcol3, qcol4 = st.columns(4)
+sample_fill = ""
+with qcol1:
+    if st.button("🎬 Horror movie... acting nalla irunthuchu"):
+        sample_fill = "I have recently watched a horror movie. Athula screenplay nalla illa aana acting nalla irunthuchu."
+with qcol2:
+    if st.button("👍 Vijay is a good hero"):
+        sample_fill = "Vijay is a good hero"
+with qcol3:
+    if st.button("👎 Padam nalla illa"):
+        sample_fill = "padam nalla illa"
+with qcol4:
+    if st.button("👌 Raja Balaji isn't a bad director"):
+        sample_fill = "Raja Balaji isn't a bad director"
+
+# Sentiment Analyzer Text Box
 user_input = st.text_area(
     "Tanglish / Tamil comment to analyze:",
-    value=sample_text,
+    value=sample_fill,
     height=100,
-    placeholder="e.g., I have recently watched a horror movie. Athula screenplay nalla illa aana acting nalla irunthuchu..."
+    placeholder="Your spoken dialogue from the Voice Recognizer above will appear here automatically..."
 )
 
 analyze_btn = st.button("🔍 Analyze Sentiment", type="primary", use_container_width=True)
 
+# Sentiment Prediction Engine
 if analyze_btn and user_input.strip() and artifacts_loaded:
     with st.spinner("Analyzing code-mixed linguistic patterns..."):
         text = user_input.strip()
@@ -452,4 +456,4 @@ if analyze_btn and user_input.strip() and artifacts_loaded:
                 st.info(f"💡 **Linguistic Insight**: {note}")
 
 elif analyze_btn and not user_input.strip():
-    st.warning("Please enter or speak a dialogue to analyze.")
+    st.warning("Please speak into the Voice Recognizer above or enter a dialogue to analyze.")
