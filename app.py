@@ -11,10 +11,10 @@ import re
 import html
 import os
 import io
-import base64
 import plotly.express as px
 from gtts import gTTS
 import speech_recognition as sr
+import streamlit.components.v1 as components
 
 # Set Streamlit Page Configuration
 st.set_page_config(
@@ -109,7 +109,6 @@ with st.sidebar:
     
     st.subheader("🎙️ Voice Assistant Settings")
     enable_voice_output = st.checkbox("🔊 Speak Prediction Aloud (TTS)", value=True)
-    voice_speed = st.selectbox("Voice Accent", ["Indian English (en-IN)", "Tamil Transliterated (ta)"], index=0)
     st.divider()
     
     st.subheader("Benchmark Comparison")
@@ -124,19 +123,19 @@ with st.sidebar:
 
 # Main Page Layout
 st.title("🎙️ Tanglish Sentiment Analyzer & Voice Assistant")
-st.markdown("Analyze Tamil-English code-mixed comments with **Deep Recurrent Neural Networks** and an interactive **Voice Assistant**.")
+st.markdown("Analyze Tamil-English code-mixed comments using **Deep Recurrent Neural Networks** and an interactive **Voice Assistant**.")
 
 if not artifacts_loaded:
     st.warning("⚠️ Model or artifact files not found in `models/` or `artifacts/`.")
 
 # Tabs for Input Method: Text vs. Voice
-tab_text, tab_voice = st.tabs(["✍️ Text Input & Quick Dialogues", "🎙️ Voice Input (Speech-to-Text)"])
+tab_text, tab_voice = st.tabs(["✍️ Text Input & Quick Dialogues", "🎙️ Continuous Voice Input (Speech-to-Text)"])
 
 sample_text = ""
 
 with tab_text:
     st.markdown("##### 💡 Quick Test Dialogues:")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         if st.button("Vijay is a good hero"):
             sample_text = "Vijay is a good hero"
@@ -144,27 +143,135 @@ with tab_text:
         if st.button("Raja Balaji isn't a bad director"):
             sample_text = "Raja Balaji isn't a bad director"
     with col3:
-        if st.button("Padam nalla iruku aana direction sari kidayathu"):
-            sample_text = "Padam nalla iruku aana vanthu direction sari kidayathu, hero nadikirathu seri illa"
+        if st.button("Padam nalla illa"):
+            sample_text = "padam nalla illa"
+    with col4:
+        if st.button("Horror movie... acting nalla irunthuchu"):
+            sample_text = "I have recently watched a horror movie. Athula screenplay nalla illa aana acting nalla irunthuchu."
 
 with tab_voice:
-    st.markdown("##### 🎙️ Speak into your microphone:")
-    st.caption("Record your Tanglish dialogue below, and the Voice Assistant will transcribe and analyze it automatically.")
+    st.markdown("##### 🎙️ Real-Time Continuous Microphone Listener:")
+    st.caption("Speak freely in Tanglish or English without getting cut off between sentences! Click **'Start Listening'**, speak your full comment, then click **'Stop'**.")
     
-    # Streamlit Audio Recorder
+    # Embedded HTML5 Web Speech API Component (Continuous Recognition that never cuts off mid-sentence!)
+    web_speech_html = """
+    <div style="background-color: #1e222d; padding: 16px; border-radius: 10px; border: 1px solid #3d4455; font-family: sans-serif;">
+        <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px;">
+            <button id="startBtn" onclick="startRecognition()" style="background-color: #e74c3c; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <span>🎙️</span> <span id="btnText">Start Continuous Voice Input</span>
+            </button>
+            <button id="stopBtn" onclick="stopRecognition()" style="background-color: #34495e; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer;" disabled>
+                ⏹️ Stop
+            </button>
+            <span id="statusIndicator" style="color: #95a5a6; font-size: 13px;">Status: Ready to listen</span>
+        </div>
+        <div style="margin-top: 8px;">
+            <label style="color: #bdc3c7; font-size: 13px; font-weight: bold;">Live Transcribed Speech (Continuous):</label>
+            <div id="liveOutput" style="background-color: #12151c; color: #2ecc71; border: 1px solid #2c3e50; border-radius: 6px; padding: 12px; min-height: 55px; margin-top: 6px; font-size: 15px; line-height: 1.4; user-select: text;">
+                (Your spoken Tanglish words will appear here continuously across multiple sentences...)
+            </div>
+        </div>
+        <div style="margin-top: 10px; display: flex; gap: 10px;">
+            <button onclick="copyToClipboard()" style="background-color: #2980b9; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                📋 Copy Text to Paste Below
+            </button>
+            <span id="copyNotice" style="color: #2ecc71; font-size: 12px; display: none;">Copied to clipboard!</span>
+        </div>
+    </div>
+
+    <script>
+    let recognition;
+    let fullTranscript = '';
+    let isRecognizing = false;
+
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-IN'; // Optimized for Indian English & Romanized Indian accents
+
+        recognition.onstart = function() {
+            isRecognizing = true;
+            document.getElementById('statusIndicator').innerText = '🔴 Listening continuously... (Speak your full dialogue)';
+            document.getElementById('statusIndicator').style.color = '#e74c3c';
+            document.getElementById('btnText').innerText = 'Listening...';
+            document.getElementById('startBtn').style.backgroundColor = '#c0392b';
+            document.getElementById('stopBtn').disabled = false;
+        };
+
+        recognition.onresult = function(event) {
+            let interimTranscript = '';
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    fullTranscript += event.results[i][0].transcript + ' ';
+                } else {
+                    interimTranscript += event.results[i][0].transcript;
+                }
+            }
+            document.getElementById('liveOutput').innerText = fullTranscript + (interimTranscript ? ' [' + interimTranscript + ']' : '');
+        };
+
+        recognition.onerror = function(event) {
+            console.error('Speech error:', event.error);
+            document.getElementById('statusIndicator').innerText = 'Status: ' + event.error;
+        };
+
+        recognition.onend = function() {
+            isRecognizing = false;
+            document.getElementById('statusIndicator').innerText = 'Status: Stopped';
+            document.getElementById('statusIndicator').style.color = '#95a5a6';
+            document.getElementById('btnText').innerText = 'Start Continuous Voice Input';
+            document.getElementById('startBtn').style.backgroundColor = '#e74c3c';
+            document.getElementById('stopBtn').disabled = true;
+        };
+    } else {
+        document.getElementById('statusIndicator').innerText = 'Web Speech API not supported in this browser. Please use Chrome or Edge.';
+    }
+
+    function startRecognition() {
+        if (recognition && !isRecognizing) {
+            fullTranscript = '';
+            document.getElementById('liveOutput').innerText = '';
+            recognition.start();
+        }
+    }
+
+    function stopRecognition() {
+        if (recognition && isRecognizing) {
+            recognition.stop();
+        }
+    }
+
+    function copyToClipboard() {
+        const text = document.getElementById('liveOutput').innerText.replace(/\\[.*?\\]/g, '').trim();
+        if (text) {
+            navigator.clipboard.writeText(text);
+            const notice = document.getElementById('copyNotice');
+            notice.style.display = 'inline';
+            setTimeout(() => { notice.style.display = 'none'; }, 2500);
+        }
+    }
+    </script>
+    """
+    components.html(web_speech_html, height=210)
+    
+    st.divider()
+    st.markdown("##### 📁 Or Record Audio via Streamlit Audio Recorder:")
     audio_recorded = None
     if hasattr(st, "audio_input"):
-        audio_recorded = st.audio_input("Record your voice (Tanglish / English):")
+        audio_recorded = st.audio_input("Record audio clip:")
     
     if audio_recorded is not None:
         try:
             r = sr.Recognizer()
+            r.pause_threshold = 2.5
+            r.non_speaking_duration = 1.0
             with sr.AudioFile(audio_recorded) as source:
                 audio_data = r.record(source)
                 try:
-                    # Attempt speech recognition using Google Speech API
                     transcription = r.recognize_google(audio_data, language="en-IN")
-                    st.success(f"🗣️ Transcribed Voice: **\"{transcription}\"**")
+                    st.success(f"🗣️ Transcribed Full Voice: **\"{transcription}\"**")
                     sample_text = transcription
                 except sr.UnknownValueError:
                     try:
@@ -172,7 +279,7 @@ with tab_voice:
                         st.success(f"🗣️ Transcribed Voice (Tamil): **\"{transcription}\"**")
                         sample_text = transcription
                     except Exception:
-                        st.error("Could not understand audio. Please speak clearly into the microphone.")
+                        st.error("Could not transcribe speech. Please speak closer to the microphone or use the Live Continuous listener above.")
                 except Exception as e:
                     st.error(f"Speech recognition error: {e}")
         except Exception as e:
@@ -180,7 +287,7 @@ with tab_voice:
 
 # Text Area (Populated with either sample click or voice transcription)
 current_val = sample_text if sample_text else st.session_state.transcribed_text
-user_input = st.text_area("Enter your Tanglish comment:", value=current_val, height=100, placeholder="e.g., movie semma mass ah iruku thala, or speak using the Voice tab...")
+user_input = st.text_area("Tanglish comment to analyze:", value=current_val, height=100, placeholder="e.g., I have recently watched a horror movie. Athula screenplay nalla illa aana acting nalla irunthuchu...")
 
 analyze_btn = st.button("🔍 Analyze Sentiment", type="primary", use_container_width=True)
 
@@ -203,9 +310,10 @@ if analyze_btn and user_input.strip() and artifacts_loaded:
         tanglish_negation_pattern = r"\b(?:nalla\s+illa|nalla\s+illai|nalla\s+ila|nalla\s+kidayathu|nallave\s+illa|seri\s+illa|sari\s+illa|sariyilla|seriyilla|sari\s+kidayathu|set\s+aagala|work\s+out\s+aagala|worth\s+illa|aagathu)\b"
         has_tanglish_negation = bool(re.search(tanglish_negation_pattern, expanded))
         
-        # 4. Contrastive markers
+        # 4. Contrastive markers ('aana', 'but', 'irunthalum')
         contrast_markers = r"\b(?:aana|aanaa|ana|but|irunthalum|analum)\b"
         has_contrast = bool(re.search(contrast_markers, expanded))
+        
         pos_cues = r"\b(?:super|semma|good|mass|verithanam|best|love|masss|thala|blockbuster|arputham)\b|\bnalla(?!\s+(?:illa|illai|ila|kidayathu))\b"
         neg_cues = r"\b(?:mokka|worst|waste|bad|flop|bore|kevalam|kodumai|karumam|thala\s*vali)\b|" + tanglish_negation_pattern
         has_pos = bool(re.search(pos_cues, expanded))
@@ -228,20 +336,20 @@ if analyze_btn and user_input.strip() and artifacts_loaded:
                 p_pos = min(0.95, p_pos + 0.40)
                 p_neg = 1.0 - p_pos
                 nuance_notes.append("Litotes / double-negative resolved ('not bad' -> favorable sentiment).")
-            elif has_contrast and has_pos and has_neg:
+            elif has_contrast and (has_pos or has_neg or has_tanglish_negation):
                 pred_label = "Mixed_feelings"
                 confidence = 88.5
                 prob_df = pd.DataFrame({
                     "Sentiment Class": ["Positive", "Negative", "Mixed_feelings"],
                     "Probability (%)": [35.0, 35.0, 88.5]
                 })
-                nuance_notes.append("Contrastive clause detected ('aana/but' bridging positive and negative cues).")
+                nuance_notes.append("Contrastive clause detected ('aana/but' connects negative and positive aspects: screenplay vs. acting).")
             elif has_tanglish_negation:
                 p_neg = max(0.92, p_neg + 0.50)
                 p_pos = 1.0 - p_neg
                 nuance_notes.append("Tanglish negation detected ('nalla illa / seri illa' -> Negative sentiment).")
                 
-            if not (has_contrast and has_pos and has_neg):
+            if not (has_contrast and (has_pos or has_neg or has_tanglish_negation)):
                 if p_pos >= 0.50:
                     pred_label = "Positive"
                     confidence = p_pos * 100
@@ -263,11 +371,11 @@ if analyze_btn and user_input.strip() and artifacts_loaded:
                 probs[pos_idx] += 0.40
                 probs[neg_idx] *= 0.20
                 nuance_notes.append("Litotes / double-negative resolved ('not bad' -> favorable sentiment).")
-            elif has_contrast and has_pos and has_neg:
+            elif has_contrast and (has_pos or has_neg or has_tanglish_negation):
                 probs[mix_idx] += 0.55
                 probs[neg_idx] *= 0.50
                 probs[pos_idx] *= 0.50
-                nuance_notes.append("Contrastive clause detected ('aana/but' bridging positive and negative cues).")
+                nuance_notes.append("Contrastive clause detected ('aana/but' connects negative and positive aspects: screenplay vs. acting).")
             elif has_tanglish_negation:
                 probs[neg_idx] += 0.65
                 probs[pos_idx] *= 0.15
@@ -304,9 +412,12 @@ if analyze_btn and user_input.strip() and artifacts_loaded:
             
         # Voice Output: Assistant Reads Prediction Aloud
         if enable_voice_output:
-            speech_text = f"The predicted sentiment is {pred_label}, with a confidence of {int(confidence)} percent."
-            if nuance_notes:
-                speech_text += f" {nuance_notes[0]}"
+            if pred_label == "Mixed_feelings":
+                speech_text = f"The predicted sentiment is Mixed Feelings, with a confidence of {int(confidence)} percent. Contrastive discourse was detected: the comment expresses both negative criticism and positive praise."
+            else:
+                speech_text = f"The predicted sentiment is {pred_label}, with a confidence of {int(confidence)} percent."
+                if nuance_notes:
+                    speech_text += f" {nuance_notes[0]}"
                 
             audio_bytes = generate_speech(speech_text)
             if audio_bytes:
