@@ -10,17 +10,21 @@ import json
 import re
 import html
 import os
+import io
+import base64
 import plotly.express as px
+from gtts import gTTS
+import speech_recognition as sr
 
 # Set Streamlit Page Configuration
 st.set_page_config(
-    page_title="Tanglish Sentiment Analyzer",
-    page_icon="🎬",
+    page_title="Tanglish Sentiment Analyzer & Voice Assistant",
+    page_icon="🎙️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom Attention Layer (for compatibility with multi-class attention models)
+# Custom Attention Layer
 @tf.keras.utils.register_keras_serializable()
 class AttentionLayer(Layer):
     def __init__(self, **kwargs):
@@ -55,6 +59,17 @@ def clean_tanglish_text(text):
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
+# Function to generate Text-To-Speech audio bytes
+def generate_speech(text_to_speak):
+    try:
+        tts = gTTS(text=text_to_speak, lang='en', tld='co.in', slow=False)
+        fp = io.BytesIO()
+        tts.write_to_fp(fp)
+        fp.seek(0)
+        return fp.read()
+    except Exception as e:
+        return None
+
 # Load Cached Resources
 @st.cache_resource
 def load_all_artifacts():
@@ -75,6 +90,10 @@ def load_all_artifacts():
 model, tokenizer, config = load_all_artifacts()
 artifacts_loaded = model is not None and tokenizer is not None and config is not None
 
+# Initialize Session State
+if "transcribed_text" not in st.session_state:
+    st.session_state.transcribed_text = ""
+
 # Sidebar
 with st.sidebar:
     st.image("https://img.icons8.com/color/96/artificial-intelligence.png", width=75)
@@ -88,6 +107,11 @@ with st.sidebar:
     """)
     st.divider()
     
+    st.subheader("🎙️ Voice Assistant Settings")
+    enable_voice_output = st.checkbox("🔊 Speak Prediction Aloud (TTS)", value=True)
+    voice_speed = st.selectbox("Voice Accent", ["Indian English (en-IN)", "Tamil Transliterated (ta)"], index=0)
+    st.divider()
+    
     st.subheader("Benchmark Comparison")
     benchmark_df = pd.DataFrame({
         "Model": ["CNN-BiLSTM (Ensemble)", "CNN-BiLSTM (Tuned)", "BiLSTM + Attn", "BiLSTM", "GRU", "LSTM", "BiRNN", "Vanilla RNN"],
@@ -96,35 +120,67 @@ with st.sidebar:
     })
     st.dataframe(benchmark_df, hide_index=True)
     st.divider()
-    st.caption("Built with TensorFlow & Streamlit")
+    st.caption("Built with TensorFlow, Streamlit & gTTS")
 
 # Main Page Layout
-st.title("🎬 Tamil-English (Tanglish) Sentiment Analyzer")
-st.markdown("Analyze the underlying sentiment of Tamil-English code-mixed comments and cinema reviews using deep recurrent neural architectures.")
+st.title("🎙️ Tanglish Sentiment Analyzer & Voice Assistant")
+st.markdown("Analyze Tamil-English code-mixed comments with **Deep Recurrent Neural Networks** and an interactive **Voice Assistant**.")
 
 if not artifacts_loaded:
     st.warning("⚠️ Model or artifact files not found in `models/` or `artifacts/`.")
 
-# Quick Sample Buttons
-st.markdown("##### 💡 Quick Test Dialogues:")
-col1, col2, col3 = st.columns(3)
-with col1:
-    b1 = st.button("Vijay is a good hero")
-with col2:
-    b2 = st.button("Raja Balaji isn't a bad director")
-with col3:
-    b3 = st.button("Padam nalla iruku aana direction sari kidayathu")
+# Tabs for Input Method: Text vs. Voice
+tab_text, tab_voice = st.tabs(["✍️ Text Input & Quick Dialogues", "🎙️ Voice Input (Speech-to-Text)"])
 
 sample_text = ""
-if b1:
-    sample_text = "Vijay is a good hero"
-elif b2:
-    sample_text = "Raja Balaji isn't a bad director"
-elif b3:
-    sample_text = "Padam nalla iruku aana vanthu direction sari kidayathu, hero nadikirathu seri illa"
 
-# Text Area
-user_input = st.text_area("Enter your Tanglish comment:", value=sample_text, height=110, placeholder="e.g., movie semma mass ah iruku thala...")
+with tab_text:
+    st.markdown("##### 💡 Quick Test Dialogues:")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("Vijay is a good hero"):
+            sample_text = "Vijay is a good hero"
+    with col2:
+        if st.button("Raja Balaji isn't a bad director"):
+            sample_text = "Raja Balaji isn't a bad director"
+    with col3:
+        if st.button("Padam nalla iruku aana direction sari kidayathu"):
+            sample_text = "Padam nalla iruku aana vanthu direction sari kidayathu, hero nadikirathu seri illa"
+
+with tab_voice:
+    st.markdown("##### 🎙️ Speak into your microphone:")
+    st.caption("Record your Tanglish dialogue below, and the Voice Assistant will transcribe and analyze it automatically.")
+    
+    # Streamlit Audio Recorder
+    audio_recorded = None
+    if hasattr(st, "audio_input"):
+        audio_recorded = st.audio_input("Record your voice (Tanglish / English):")
+    
+    if audio_recorded is not None:
+        try:
+            r = sr.Recognizer()
+            with sr.AudioFile(audio_recorded) as source:
+                audio_data = r.record(source)
+                try:
+                    # Attempt speech recognition using Google Speech API
+                    transcription = r.recognize_google(audio_data, language="en-IN")
+                    st.success(f"🗣️ Transcribed Voice: **\"{transcription}\"**")
+                    sample_text = transcription
+                except sr.UnknownValueError:
+                    try:
+                        transcription = r.recognize_google(audio_data, language="ta-IN")
+                        st.success(f"🗣️ Transcribed Voice (Tamil): **\"{transcription}\"**")
+                        sample_text = transcription
+                    except Exception:
+                        st.error("Could not understand audio. Please speak clearly into the microphone.")
+                except Exception as e:
+                    st.error(f"Speech recognition error: {e}")
+        except Exception as e:
+            st.error(f"Error processing audio recording: {e}")
+
+# Text Area (Populated with either sample click or voice transcription)
+current_val = sample_text if sample_text else st.session_state.transcribed_text
+user_input = st.text_area("Enter your Tanglish comment:", value=current_val, height=100, placeholder="e.g., movie semma mass ah iruku thala, or speak using the Voice tab...")
 
 analyze_btn = st.button("🔍 Analyze Sentiment", type="primary", use_container_width=True)
 
@@ -163,18 +219,16 @@ if analyze_btn and user_input.strip() and artifacts_loaded:
         
         nuance_notes = []
         
-        # Check if model is binary (output_shape == (None, 1)) or multi-class (5 classes)
+        # Binary or multi-class handling
         if hasattr(raw_pred, '__len__') and len(raw_pred) == 1:
             p_pos = float(raw_pred[0])
             p_neg = 1.0 - p_pos
             
-            # Apply linguistic calibration
             if has_litotes:
                 p_pos = min(0.95, p_pos + 0.40)
                 p_neg = 1.0 - p_pos
                 nuance_notes.append("Litotes / double-negative resolved ('not bad' -> favorable sentiment).")
             elif has_contrast and has_pos and has_neg:
-                # Contrastive clause -> Mixed feelings
                 pred_label = "Mixed_feelings"
                 confidence = 88.5
                 prob_df = pd.DataFrame({
@@ -248,6 +302,17 @@ if analyze_btn and user_input.strip() and artifacts_loaded:
         with mcol3:
             st.metric("Processed Tokens", len(cleaned.split()))
             
+        # Voice Output: Assistant Reads Prediction Aloud
+        if enable_voice_output:
+            speech_text = f"The predicted sentiment is {pred_label}, with a confidence of {int(confidence)} percent."
+            if nuance_notes:
+                speech_text += f" {nuance_notes[0]}"
+                
+            audio_bytes = generate_speech(speech_text)
+            if audio_bytes:
+                st.audio(audio_bytes, format="audio/mp3", autoplay=True)
+                st.caption(f"🔊 **Voice Assistant**: *\"{speech_text}\"*")
+            
         # Probability Chart
         prob_df.sort_values(by="Probability (%)", ascending=True, inplace=True)
         fig = px.bar(
@@ -273,4 +338,4 @@ if analyze_btn and user_input.strip() and artifacts_loaded:
                 st.info(f"💡 **Linguistic Insight**: {note}")
 
 elif analyze_btn and not user_input.strip():
-    st.warning("Please enter a dialogue or comment to analyze.")
+    st.warning("Please enter or speak a dialogue to analyze.")
