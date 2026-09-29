@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Unified Voice & Text Analyzer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #e6edf3;
+      padding: 4px;
+    }
+    .wrapper {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    }
+    .quick-chips-label {
+      font-size: 13px;
+      color: #8b949e;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+    }
+    .chips-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .chip-btn {
+      background: #21262d;
+      border: 1px solid #363b42;
+      color: #c9d1d9;
+      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .chip-btn:hover {
+      background: #30363d;
+      border-color: #58a6ff;
+      color: #58a6ff;
+      transform: translateY(-1px);
+    }
+    .input-box-wrapper {
+      position: relative;
+      margin-bottom: 12px;
+    }
+    textarea {
+      width: 100%;
+      min-height: 105px;
+      background: #0d1117;
+      color: #ffffff;
+      border: 1.5px solid #30363d;
+      border-radius: 10px;
+      padding: 14px 54px 14px 14px;
+      font-size: 15px;
+      line-height: 1.5;
+      font-family: inherit;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    textarea:focus {
+      border-color: #58a6ff;
+      box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+    }
+    .mic-button {
+      position: absolute;
+      right: 12px;
+      bottom: 14px;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: #21262d;
+      border: 1px solid #363b42;
+      color: #ffffff;
+      font-size: 19px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      outline: none;
+      z-index: 2;
+    }
+    .mic-button:hover {
+      background: #30363d;
+      border-color: #58a6ff;
+      transform: scale(1.08);
+    }
+    @keyframes pulse-red {
+      0% { box-shadow: 0 0 0 0 rgba(248, 81, 73, 0.7); transform: scale(1); }
+      50% { box-shadow: 0 0 0 10px rgba(248, 81, 73, 0); transform: scale(1.08); }
+      100% { box-shadow: 0 0 0 0 rgba(248, 81, 73, 0); transform: scale(1); }
+    }
+    .mic-button.recording {
+      background: #da3633 !important;
+      border-color: #f85149 !important;
+      animation: pulse-red 1.5s infinite;
+    }
+    .bottom-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .status-text {
+      font-size: 13px;
+      color: #8b949e;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-text.recording {
+      color: #f85149;
+      font-weight: 600;
+    }
+    .status-text.success {
+      color: #3fb950;
+      font-weight: 500;
+    }
+    .btn-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .clear-btn {
+      background: transparent;
+      border: 1px solid #30363d;
+      color: #8b949e;
+      padding: 9px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .clear-btn:hover {
+      background: #21262d;
+      color: #c9d1d9;
+    }
+    .analyze-btn {
+      background: linear-gradient(135deg, #238636, #2ea043);
+      color: #ffffff;
+      border: 1px solid rgba(240, 246, 252, 0.1);
+      padding: 10px 22px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(46, 160, 67, 0.3);
+    }
+    .analyze-btn:hover {
+      background: linear-gradient(135deg, #2ea043, #3fb950);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(46, 160, 67, 0.45);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper" id="componentRoot">
+    <div class="quick-chips-label">
+      <span>💡 Quick Test Samples (Click to load):</span>
+    </div>
+    <div class="chips-row">
+      <button class="chip-btn" onclick="fillSample('I have recently watched a horror movie. Athula screenplay nalla illa aana acting nalla irunthuchu.')">
+        🎬 Horror Movie (Screenplay vs Acting)
+      </button>
+      <button class="chip-btn" onclick="fillSample('Vijay is a good hero')">
+        👍 Vijay is a good hero
+      </button>
+      <button class="chip-btn" onclick="fillSample('padam nalla illa')">
+        👎 Padam nalla illa
+      </button>
+      <button class="chip-btn" onclick="fillSample('Raja Balaji isn\'t a bad director')">
+        👌 Isn't a bad director
+      </button>
+    </div>
+
+    <div class="input-box-wrapper">
+      <textarea
+        id="dialogueInput"
+        placeholder="Type here with keyboard, OR click the 🎙️ mic button and speak in Tanglish/Tamil... Real-time words will appear live!"
+      ></textarea>
+      <button id="micBtn" class="mic-button" onclick="toggleListening()" title="Click to Speak (Antigravity-style Live Voice Typing)">
+        🎙️
+      </button>
+    </div>
+
+    <div class="bottom-bar">
+      <div id="statusIndicator" class="status-text">
+        <span>⚪ Ready. Type with keyboard or click 🎙️ to speak live.</span>
+      </div>
+      <div class="btn-group">
+        <button class="clear-btn" onclick="clearInput()">Clear</button>
+        <button class="analyze-btn" onclick="triggerAnalyze()">
+          🔍 Analyze Sentiment
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // -------------------------------------------------------------
+    // Streamlit Custom Component Messaging Protocol
+    // -------------------------------------------------------------
+    function sendMessage(type, data) {
+      window.parent.postMessage({
+        isStreamlitMessage: true,
+        type: type,
+        ...data
+      }, "*");
+    }
+
+    function setComponentValue(val) {
+      sendMessage("streamlit:setComponentValue", {
+        value: val,
+        dataType: "json"
+      });
+    }
+
+    function notifyHeight() {
+      const height = document.getElementById("componentRoot").scrollHeight + 20;
+      sendMessage("streamlit:setFrameHeight", { height: height });
+    }
+
+    // Tell Streamlit component is ready
+    sendMessage("streamlit:componentReady", { apiVersion: 1 });
+
+    // Handle render messages from Streamlit
+    let currentLanguage = "ta-IN";
+    window.addEventListener("message", function(event) {
+      if (event.data && event.data.type === "streamlit:render") {
+        const args = event.data.args || {};
+        if (args.language) {
+          currentLanguage = args.language;
+          if (recognition) {
+            recognition.lang = currentLanguage;
+          }
+        }
+        if (args.text && !document.getElementById("dialogueInput").value.trim()) {
+          document.getElementById("dialogueInput").value = args.text;
+        }
+        notifyHeight();
+      }
+    });
+
+    // -------------------------------------------------------------
+    // Antigravity-Style Live Real-Time Speech Recognition (Web Speech API)
+    // -------------------------------------------------------------
+    const textarea = document.getElementById("dialogueInput");
+    const micBtn = document.getElementById("micBtn");
+    const statusIndicator = document.getElementById("statusIndicator");
+    
+    let recognition = null;
+    let isRecording = false;
+    let persistentTranscript = "";
+
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (SpeechRec) {
+      recognition = new SpeechRec();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = currentLanguage;
+
+      recognition.onstart = function() {
+        isRecording = true;
+        micBtn.classList.add("recording");
+        micBtn.title = "Click to Stop Listening";
+        statusIndicator.className = "status-text recording";
+        statusIndicator.innerHTML = '<span>🔴 Listening live in Tanglish/Tamil... Speak freely!</span>';
+      };
+
+      recognition.onresult = function(event) {
+        let interimText = "";
+        let finalChunk = persistentTranscript;
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const item = event.results[i];
+          if (item.isFinal) {
+            persistentTranscript += item[0].transcript + " ";
+            finalChunk = persistentTranscript;
+          } else {
+            interimText += item[0].transcript;
+          }
+        }
+
+        // Live typing directly into the text box as words are spoken!
+        textarea.value = (finalChunk + interimText).trim();
+        notifyHeight();
+      };
+
+      recognition.onerror = function(event) {
+        console.warn("Speech error:", event.error);
+        statusIndicator.className = "status-text";
+        statusIndicator.innerHTML = `<span style="color:#d29922;">⚠️ Mic note: ${event.error}</span>`;
+        stopRecognition();
+      };
+
+      recognition.onend = function() {
+        stopRecognition();
+        statusIndicator.className = "status-text success";
+        statusIndicator.innerHTML = '<span>✅ Spoken dialogue captured in box! Click "Analyze Sentiment".</span>';
+        notifyHeight();
+      };
+    } else {
+      statusIndicator.className = "status-text";
+      statusIndicator.innerHTML = '<span style="color:#f85149;">Speech recognition not supported in this browser. Please use Chrome or Edge.</span>';
+    }
+
+    function toggleListening() {
+      if (!recognition) {
+        alert("Speech recognition is not supported in this browser. Please use Chrome or Edge.");
+        return;
+      }
+      if (isRecording) {
+        recognition.stop();
+        stopRecognition();
+      } else {
+        persistentTranscript = textarea.value.trim() ? textarea.value.trim() + " " : "";
+        recognition.lang = currentLanguage;
+        recognition.start();
+      }
+    }
+
+    function stopRecognition() {
+      isRecording = false;
+      micBtn.classList.remove("recording");
+      micBtn.title = "Click to Speak (Live Voice Typing)";
+    }
+
+    function fillSample(text) {
+      textarea.value = text;
+      persistentTranscript = text + " ";
+      statusIndicator.className = "status-text";
+      statusIndicator.innerHTML = '<span>Sample loaded. You can edit with keyboard or click 🔍 Analyze.</span>';
+      notifyHeight();
+    }
+
+    function clearInput() {
+      textarea.value = "";
+      persistentTranscript = "";
+      if (isRecording && recognition) {
+        recognition.stop();
+        stopRecognition();
+      }
+      statusIndicator.className = "status-text";
+      statusIndicator.innerHTML = '<span>Cleared. Type or click 🎙️ to speak.</span>';
+      notifyHeight();
+    }
+
+    function triggerAnalyze() {
+      const text = textarea.value.trim();
+      if (!text) {
+        statusIndicator.className = "status-text";
+        statusIndicator.innerHTML = '<span style="color:#f85149;">⚠️ Please enter or speak some text first!</span>';
+        return;
+      }
+      // Send value directly to Streamlit Python backend!
+      setComponentValue({
+        text: text,
+        timestamp: Date.now()
+      });
+    }
+
+    // Allow Ctrl + Enter to analyze
+    textarea.addEventListener("keydown", function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        triggerAnalyze();
+      }
+    });
+
+    // Auto resize handling
+    textarea.addEventListener("input", notifyHeight);
+    if (window.ResizeObserver) {
+      new ResizeObserver(notifyHeight).observe(document.getElementById("componentRoot"));
+    }
+
+    // Notify initial height
+    window.addEventListener("load", notifyHeight);
+    setTimeout(notifyHeight, 100);
+    setTimeout(notifyHeight, 500);
+  </script>
+</body>
+</html>

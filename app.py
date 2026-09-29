@@ -15,7 +15,7 @@ import plotly.express as px
 from gtts import gTTS
 import streamlit.components.v1 as components
 
-# Set Streamlit Page Configuration
+# Page Configuration
 st.set_page_config(
     page_title="Tanglish Sentiment Analyzer & Voice Assistant",
     page_icon="🎙️",
@@ -58,7 +58,7 @@ def clean_tanglish_text(text):
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
-# Function to generate Text-To-Speech audio bytes
+# Function to generate Text-To-Speech audio
 def generate_speech(text_to_speak):
     try:
         tts = gTTS(text=text_to_speak, lang='en', tld='co.in', slow=False)
@@ -89,6 +89,9 @@ def load_all_artifacts():
 model, tokenizer, config = load_all_artifacts()
 artifacts_loaded = model is not None and tokenizer is not None and config is not None
 
+# Read comment from URL Query Parameter if submitted via unified voice/text box
+url_comment = st.query_params.get("comment", "")
+
 # Sidebar
 with st.sidebar:
     st.image("https://img.icons8.com/color/96/artificial-intelligence.png", width=75)
@@ -117,187 +120,43 @@ with st.sidebar:
     st.divider()
     st.caption("Built with TensorFlow, Streamlit & Web Speech API")
 
-# Main Header
+# Main Page Header
 st.title("🎙️ Tanglish Sentiment Analyzer & Voice Assistant")
-st.markdown("Speak your Tamil-English dialogue below. The **Voice Recognizer** transcribes continuously and automatically places your speech into the analyzer.")
+st.markdown("Type with your keyboard or click the **microphone button** to speak. As you talk, words appear live in real time!")
 
 if not artifacts_loaded:
     st.warning("⚠️ Model or artifact files not found in `models/` or `artifacts/`.")
 
 selected_lang_code = "ta-IN" if "ta-IN" in mic_lang else "en-IN"
 
-# ==============================================================================
-# Dedicated Continuous Voice Recognizer Component with Auto-Injection
-# ==============================================================================
-st.markdown("### 🎙️ Voice Recognizer")
-st.caption("Click **'Start Speaking'**, talk freely in Tanglish or Tamil across multiple sentences, then click **'Stop Recording'**. Your spoken text automatically appears in the analysis box below!")
+# Declare Custom Component for Antigravity-Style Live Voice & Text Input
+component_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_input_component")
+unified_voice_input = components.declare_component("unified_voice_input", path=component_dir)
 
-voice_component_html = f"""
-<div style="background-color: #1a1e29; padding: 20px; border-radius: 12px; border: 1px solid #3d4455; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
-    <div style="display: flex; gap: 14px; align-items: center; margin-bottom: 14px; flex-wrap: wrap;">
-        <button id="startBtn" onclick="startRecognition()" style="background: linear-gradient(135deg, #e74c3c, #c0392b); color: white; border: none; padding: 12px 26px; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 15px; box-shadow: 0 4px 12px rgba(231,76,60,0.35); transition: 0.2s;">
-            <span style="font-size: 18px;">🎙️</span> <span id="btnText">Start Speaking</span>
-        </button>
-        <button id="stopBtn" onclick="stopRecognition()" style="background-color: #34495e; color: white; border: none; padding: 12px 22px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;" disabled>
-            ⏹️ Stop Recording
-        </button>
-        <span id="statusIndicator" style="color: #95a5a6; font-size: 14px; font-weight: 500;">Status: Ready to listen</span>
-    </div>
-    
-    <div>
-        <label style="color: #ecf0f1; font-size: 13px; font-weight: 600;">Real-Time Spoken Words (Continuous):</label>
-        <div id="liveOutput" style="background-color: #0f1218; color: #2ecc71; border: 1px solid #2c3e50; border-radius: 8px; padding: 14px; min-height: 60px; margin-top: 6px; font-size: 16px; line-height: 1.5; user-select: text;">
-            (Click 'Start Speaking' and speak your Tanglish or Tamil dialogue...)
-        </div>
-    </div>
-    
-    <div style="margin-top: 12px; display: flex; gap: 12px; align-items: center;">
-        <button onclick="autoFillTextArea()" style="background: linear-gradient(135deg, #27ae60, #2ecc71); color: white; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;">
-            📥 Send to Analyzer Box Below
-        </button>
-        <span id="injectNotice" style="color: #2ecc71; font-size: 13px; font-weight: bold; display: none;">✅ Automatically transferred to analyzer box!</span>
-    </div>
-</div>
-
-<script>
-let recognition;
-let fullTranscript = '';
-let isRecognizing = false;
-
-function setReactInputValue(input, value) {{
-    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
-    nativeInputValueSetter.call(input, value);
-    const ev2 = new Event('input', {{ bubbles: true }});
-    input.dispatchEvent(ev2);
-}}
-
-function syncToParentTextArea(text) {{
-    try {{
-        const textareas = window.parent.document.querySelectorAll('textarea');
-        if (textareas && textareas.length > 0) {{
-            const target = textareas[0];
-            setReactInputValue(target, text);
-            const notice = document.getElementById('injectNotice');
-            notice.style.display = 'inline';
-            setTimeout(() => {{ notice.style.display = 'none'; }}, 3000);
-        }}
-    }} catch(e) {{
-        console.log("Cross-origin frame notice:", e);
-    }}
-}}
-
-if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {{
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = '{selected_lang_code}';
-
-    recognition.onstart = function() {{
-        isRecognizing = true;
-        document.getElementById('statusIndicator').innerText = '🔴 Listening... (Speak your full dialogue)';
-        document.getElementById('statusIndicator').style.color = '#e74c3c';
-        document.getElementById('btnText').innerText = 'Listening (Speak Now)...';
-        document.getElementById('startBtn').style.background = '#c0392b';
-        document.getElementById('stopBtn').disabled = false;
-    }};
-
-    recognition.onresult = function(event) {{
-        let interimTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {{
-            if (event.results[i].isFinal) {{
-                fullTranscript += event.results[i][0].transcript + ' ';
-            }} else {{
-                interimTranscript += event.results[i][0].transcript;
-            }}
-        }}
-        const currentDisplay = (fullTranscript + interimTranscript).trim();
-        document.getElementById('liveOutput').innerText = currentDisplay;
-        
-        // Automatically sync recognized speech into the analyzer box in real time!
-        if (currentDisplay) {{
-            syncToParentTextArea(currentDisplay);
-        }}
-    }};
-
-    recognition.onerror = function(event) {{
-        console.error('Speech error:', event.error);
-        document.getElementById('statusIndicator').innerText = 'Status: ' + event.error;
-    }};
-
-    recognition.onend = function() {{
-        isRecognizing = false;
-        document.getElementById('statusIndicator').innerText = 'Status: Stopped. Text ready in analyzer box!';
-        document.getElementById('statusIndicator').style.color = '#2ecc71';
-        document.getElementById('btnText').innerText = 'Start Speaking';
-        document.getElementById('startBtn').style.background = 'linear-gradient(135deg, #e74c3c, #c0392b)';
-        document.getElementById('stopBtn').disabled = true;
-        
-        if (fullTranscript.trim()) {{
-            syncToParentTextArea(fullTranscript.trim());
-        }}
-    }};
-}} else {{
-    document.getElementById('statusIndicator').innerText = 'Web Speech API not supported in this browser. Please use Chrome or Edge.';
-}}
-
-function startRecognition() {{
-    if (recognition && !isRecognizing) {{
-        fullTranscript = '';
-        document.getElementById('liveOutput').innerText = '';
-        recognition.start();
-    }}
-}}
-
-function stopRecognition() {{
-    if (recognition && isRecognizing) {{
-        recognition.stop();
-    }}
-}}
-
-function autoFillTextArea() {{
-    const current = document.getElementById('liveOutput').innerText.trim();
-    if (current && !current.startsWith('(')) {{
-        syncToParentTextArea(current);
-    }}
-}}
-</script>
-"""
-components.html(voice_component_html, height=230)
-
-st.markdown("---")
-
-# Quick Demo Buttons for Instant Viva Testing
-st.markdown("##### 💡 Quick Test Dialogues (Click any button to fill):")
-qcol1, qcol2, qcol3, qcol4 = st.columns(4)
-sample_fill = ""
-with qcol1:
-    if st.button("🎬 Horror movie... acting nalla irunthuchu"):
-        sample_fill = "I have recently watched a horror movie. Athula screenplay nalla illa aana acting nalla irunthuchu."
-with qcol2:
-    if st.button("👍 Vijay is a good hero"):
-        sample_fill = "Vijay is a good hero"
-with qcol3:
-    if st.button("👎 Padam nalla illa"):
-        sample_fill = "padam nalla illa"
-with qcol4:
-    if st.button("👌 Raja Balaji isn't a bad director"):
-        sample_fill = "Raja Balaji isn't a bad director"
-
-# Sentiment Analyzer Text Box
-user_input = st.text_area(
-    "Tanglish / Tamil comment to analyze:",
-    value=sample_fill,
-    height=100,
-    placeholder="Your spoken dialogue from the Voice Recognizer above will appear here automatically..."
+# Render Unified Voice & Keyboard Input Widget
+st.markdown("##### 💬 Enter Dialogue (Type with Keyboard OR Click 🎙️ to Speak Live):")
+component_data = unified_voice_input(
+    language=selected_lang_code,
+    key="unified_voice_widget"
 )
 
-analyze_btn = st.button("🔍 Analyze Sentiment", type="primary", use_container_width=True)
+# Manage state for analyzed dialogue
+if "current_comment" not in st.session_state:
+    st.session_state["current_comment"] = ""
 
-# Sentiment Prediction Engine
-if analyze_btn and user_input.strip() and artifacts_loaded:
+if component_data and isinstance(component_data, dict):
+    submitted_text = component_data.get("text", "").strip()
+    if submitted_text:
+        st.session_state["current_comment"] = submitted_text
+
+comment_to_evaluate = st.session_state.get("current_comment", "")
+
+# ==============================================================================
+# Sentiment Analysis & Voice Assistant Feedback Engine
+# ==============================================================================
+if comment_to_evaluate.strip() and artifacts_loaded:
     with st.spinner("Analyzing code-mixed linguistic patterns..."):
-        text = user_input.strip()
+        text = comment_to_evaluate.strip()
         raw_lower = text.lower()
         
         # 1. Contraction expansion
@@ -311,8 +170,6 @@ if analyze_btn and user_input.strip() and artifacts_loaded:
         has_litotes = bool(re.search(litotes_pattern, expanded))
         
         # 3. Bilingual Tamil/Tanglish Negation & Critique Detection
-        # Tanglish: nalla illa, seri illa, sariyilla, worth illa, mokka, worst
-        # Tamil script: நல்லா இல்ல, நல்லாயில்ல, சரி இல்ல, சரியில்ல, மோசம், இருந்திருக்கலாம், சுமார்
         tanglish_negation_pattern = r"\b(?:nalla\s+illa|nalla\s+illai|nalla\s+ila|nalla\s+kidayathu|nallave\s+illa|seri\s+illa|sari\s+illa|sariyilla|seriyilla|sari\s+kidayathu|set\s+aagala|work\s+out\s+aagala|worth\s+illa|aagathu)\b|(?:நல்லா\s*இல்ல|நல்லாயில்ல|சரி\s*இல்ல|சரியில்ல|மோசம்|வேஸ்ட்|கேவலம்|இருந்திருக்கலாம்|சுமார்|போர்)"
         has_tanglish_negation = bool(re.search(tanglish_negation_pattern, expanded))
         
@@ -398,6 +255,7 @@ if analyze_btn and user_input.strip() and artifacts_loaded:
             
         st.divider()
         st.subheader("Analysis Results")
+        st.markdown(f"**Analyzed Dialogue**: *\"{text}\"*")
         
         # Metric Cards Layout
         mcol1, mcol2, mcol3 = st.columns([2, 2, 2])
@@ -454,6 +312,3 @@ if analyze_btn and user_input.strip() and artifacts_loaded:
         if nuance_notes:
             for note in nuance_notes:
                 st.info(f"💡 **Linguistic Insight**: {note}")
-
-elif analyze_btn and not user_input.strip():
-    st.warning("Please speak into the Voice Recognizer above or enter a dialogue to analyze.")
