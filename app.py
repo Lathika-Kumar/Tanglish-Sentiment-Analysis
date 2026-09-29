@@ -306,10 +306,10 @@ if analyze_btn and user_input.strip() and artifacts_loaded:
         litotes_pattern = r"\b(?:not|is not)\s+(?:a\s+)?(?:bad|worst|mokka)\b|\b(?:mosam|mokka)\s+(?:illa|illai|ile)\b"
         has_litotes = bool(re.search(litotes_pattern, expanded))
         
-        # 3. Bilingual Tamil/Tanglish Negation Detection (Supports both Romanized Tanglish AND Tamil script!)
-        # Romanized: nalla illa, seri illa, sariyilla, worth illa
-        # Tamil script: நல்லா இல்ல, நல்லாயில்ல, சரி இல்ல, சரியில்ல, மோசம்
-        tanglish_negation_pattern = r"\b(?:nalla\s+illa|nalla\s+illai|nalla\s+ila|nalla\s+kidayathu|nallave\s+illa|seri\s+illa|sari\s+illa|sariyilla|seriyilla|sari\s+kidayathu|set\s+aagala|work\s+out\s+aagala|worth\s+illa|aagathu)\b|(?:நல்லா\s*இல்ல|நல்லாயில்ல|சரி\s*இல்ல|சரியில்ல|மோசம்|வேஸ்ட்|கேவலம்)"
+        # 3. Bilingual Tamil/Tanglish Negation & Critique Detection
+        # Tanglish: nalla illa, seri illa, sariyilla, worth illa, mokka, worst
+        # Tamil script: நல்லா இல்ல, நல்லாயில்ல, சரி இல்ல, சரியில்ல, மோசம், இருந்திருக்கலாம், சுமார்
+        tanglish_negation_pattern = r"\b(?:nalla\s+illa|nalla\s+illai|nalla\s+ila|nalla\s+kidayathu|nallave\s+illa|seri\s+illa|sari\s+illa|sariyilla|seriyilla|sari\s+kidayathu|set\s+aagala|work\s+out\s+aagala|worth\s+illa|aagathu)\b|(?:நல்லா\s*இல்ல|நல்லாயில்ல|சரி\s*இல்ல|சரியில்ல|மோசம்|வேஸ்ட்|கேவலம்|இருந்திருக்கலாம்|சுமார்|போர்)"
         has_tanglish_negation = bool(re.search(tanglish_negation_pattern, expanded))
         
         # 4. Bilingual Contrastive markers ('aana', 'but', 'irunthalum', 'ஆனா', 'ஆனால்', 'இருந்தாலும்')
@@ -317,7 +317,7 @@ if analyze_btn and user_input.strip() and artifacts_loaded:
         has_contrast = bool(re.search(contrast_markers, expanded))
         
         # Bilingual Positive cues ('super', 'semma', 'good', 'nalla', 'நல்லா', 'செம', 'சூப்பர்', 'அருமை')
-        pos_cues = r"\b(?:super|semma|good|mass|verithanam|best|love|masss|thala|blockbuster|arputham)\b|\bnalla(?!\s+(?:illa|illai|ila|kidayathu))\b|(?:செம|சூப்பர்|அருமை|வெறித்தனம்)|\bநல்லா(?!\s*இல்ல)\b"
+        pos_cues = r"\b(?:super|semma|good|mass|verithanam|best|love|masss|thala|blockbuster|arputham)\b|\bnalla(?!\s+(?:illa|illai|ila|kidayathu))\b|(?:செம|சூப்பர்|அருமை|வெறித்தனம்)|நல்லா(?!\s*இல்ல)"
         neg_cues = r"\b(?:mokka|worst|waste|bad|flop|bore|kevalam|kodumai|karumam|thala\s*vali)\b|" + tanglish_negation_pattern
         has_pos = bool(re.search(pos_cues, expanded))
         has_neg = bool(re.search(neg_cues, expanded))
