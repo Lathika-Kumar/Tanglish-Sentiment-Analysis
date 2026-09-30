@@ -1,11 +1,13 @@
-# 🎬 Tanglish Sentiment Analyzer
+# 🎬 Tanglish Sentiment Analyzer & Voice Assistant
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io/)
-[![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.13-blue.svg)](https://www.python.org/)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://lathika-kumar-tanglish-sentiment-analysis-app-gpcnv7.streamlit.app/)
+[![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/)
 [![TensorFlow](https://img.shields.io/badge/TensorFlow-2.15%2B-orange.svg)](https://tensorflow.org/)
 [![GitHub Repo](https://img.shields.io/badge/GitHub-Repository-black?logo=github)](https://github.com/Lathika-Kumar/Tanglish-Sentiment-Analysis)
 
-An end-to-end research and production framework for **Sentiment Analysis of Tamil-English (Tanglish) Code-Mixed Social Comments** using deep recurrent neural networks (Vanilla RNN, BiRNN, LSTM, GRU, BiLSTM, Seq2Seq, BiLSTM + Attention, and Hybrid CNN-BiLSTM).
+> 🌐 **Live Web Application**: [https://lathika-kumar-tanglish-sentiment-analysis-app-gpcnv7.streamlit.app/](https://lathika-kumar-tanglish-sentiment-analysis-app-gpcnv7.streamlit.app/)
+
+An end-to-end research and production framework for **Sentiment Analysis of Tamil-English (Tanglish) Code-Mixed Social Comments** using deep recurrent neural networks (Vanilla RNN, BiRNN, LSTM, GRU, BiLSTM, Seq2Seq, BiLSTM + Attention, and Hybrid CNN-BiLSTM) with an interactive **Antigravity-style Live Voice Assistant**.
 
 ---
 
@@ -54,9 +56,14 @@ Evaluated on the full 5-class DravidianCodeMix test partition ($4,402$ held-out 
 Tanglish-Sentiment-Analysis/
 │
 ├── app.py                     # Interactive Streamlit Web Application
-├── requirements.txt           # Python library dependencies
+├── requirements.txt           # Python library dependencies (Streamlit Cloud optimized)
+├── .python-version            # Python 3.11 environment configuration
+├── runtime.txt                # Python 3.11 runtime specification
 ├── README.md                  # Project overview & experimental benchmarks
 ├── run_app.bat                # 1-Click Windows Application Launcher
+│
+├── voice_input_component/     # Antigravity-style real-time live voice & text widget
+│   └── index.html             # Web Speech API + bidirectional Streamlit component
 │
 ├── models/
 │   └── best_model.keras       # Trained High-Accuracy Neural Model (~40 MB)
