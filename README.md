@@ -115,7 +115,3 @@ pip install -r requirements.txt
 | `"Padam nalla iruku aana direction sari kidayathu"` | **Mixed_feelings** 🟠 | Contrastive discourse marker (`aana`) bridging polarities |
 
 ---
-
-## 📜 Citation & Benchmark Attribution
-This implementation utilizes data from:
-> **Chakravarthi, B. R., et al. (2020)**. *Overview of the Track on Sentiment Analysis for Dravidian Languages in Code-Mixed Text.* In Forum for Information Retrieval Evaluation (FIRE 2020).
