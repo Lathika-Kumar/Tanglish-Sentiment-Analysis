@@ -1,7 +1,7 @@
 streamlit>=1.35.0
 tensorflow-cpu>=2.15.0
-numpy
-pandas
-plotly
-gTTS
-pyarrow
+numpy<2.0.0
+pandas>=2.0.0
+plotly>=5.15.0
+gTTS>=2.5.0
+pyarrow>=14.0.0
